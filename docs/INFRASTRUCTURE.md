@@ -15,6 +15,23 @@ Our infrastructure is designed for autonomous AI agent teams:
 
 ---
 
+## Task Mode Orchestration (Arena + NotebookLM)
+
+Mission Control task modes require explicit runtime config in both API and worker services:
+
+```yaml
+ARENA_ALLOWED_AGENTS: friday,arsenal,edith,jocasta
+ARENA_REVIEWER_AGENT: arsenal
+NOTEBOOKLM_RUNNER_CMD: uvx --from notebooklm-mcp-cli@latest nlm
+NOTEBOOKLM_PROFILES_ROOT: /var/lib/notebooklm/profiles
+NOTEBOOKLM_TIMEOUT_SECONDS: 120
+```
+
+Use the dedicated runbook for rollout and hardening:
+- [Task Modes + Arena + NotebookLM](TASK-MODES-ARENA-NOTEBOOKLM.md)
+
+---
+
 ## Core Components
 
 ### 1. Docker Auto-Restart

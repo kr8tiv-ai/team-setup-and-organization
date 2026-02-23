@@ -111,7 +111,8 @@ team-setup-and-organization/
 │   ├── INFRASTRUCTURE.md              # Detailed infrastructure guide
 │   ├── MONITORING.md                  # Uptime Kuma setup
 │   ├── CLOUDFLARE-TUNNEL.md          # Secure access setup
-│   └── DISASTER-RECOVERY.md           # Backup & restore procedures
+│   ├── DISASTER-RECOVERY.md           # Backup & restore procedures
+│   └── TASK-MODES-ARENA-NOTEBOOKLM.md # Task modes + arena + NotebookLM runbook
 ├── scripts/
 │   ├── setup-infrastructure.sh        # One-click setup
 │   ├── backup-containers.sh           # Automated backup script
@@ -168,6 +169,7 @@ Uptime Kuma tracks all services:
 - [Monitoring Configuration](docs/MONITORING.md) - Uptime Kuma setup & alerts
 - [Cloudflare Tunnel](docs/CLOUDFLARE-TUNNEL.md) - Secure HTTPS access
 - [Disaster Recovery](docs/DISASTER-RECOVERY.md) - Backup & restore procedures
+- [Task Modes + Arena + NotebookLM](docs/TASK-MODES-ARENA-NOTEBOOKLM.md) - Orchestration runbook for task-mode execution
 
 ### Templates
 - [Agent Container Template](docker-templates/agent-template.yml) - Standard agent config
