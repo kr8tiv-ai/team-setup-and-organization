@@ -1,0 +1,57 @@
+version: '3.8'
+
+# Template for OpenClaw AI Agent Containers
+# Copy this file and customize for each agent
+
+services:
+  agent:
+    image: openclaw/openclaw:latest
+    container_name: openclaw-{AGENT_NAME}  # Replace: friday, arsenal, edith, etc.
+    restart: unless-stopped
+    
+    environment:
+      # AI Model Configuration
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - XAI_API_KEY=${XAI_API_KEY}
+      
+      # Agent-specific config
+      - AGENT_ROLE=${AGENT_ROLE}  # CMO, COO, Creative Director, etc.
+      - AGENT_NAME=${AGENT_NAME}
+      
+      # Communication channels
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      
+      # Memory & storage
+      - SUPERMEMORY_API_KEY=${SUPERMEMORY_API_KEY}
+      - SUPERMEMORY_CONTAINER=${SUPERMEMORY_CONTAINER}
+      
+    volumes:
+      - ./data:/data
+      - ./workspace:/workspace
+    
+    ports:
+      - "${PORT}:48650"  # Customize port per agent
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:48650/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    networks:
+      - agent-network
+    
+    # Resource limits (adjust based on your VPS)
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+
+networks:
+  agent-network:
+    driver: bridge
