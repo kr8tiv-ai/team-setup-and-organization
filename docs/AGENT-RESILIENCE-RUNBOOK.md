@@ -54,6 +54,22 @@ tail -n 100 /var/log/agent-recovery.log
 tail -n 100 /var/log/container-backup.log
 ```
 
+## Cross-Repo Smoke Verification
+
+After template changes are deployed, run the resilience smoke protocol from
+`kr8tiv-team-execution-resilience`:
+
+```bash
+bash scripts/smoke_verify_recovery.sh --dry-run
+```
+
+Expected checks:
+
+- `CHECK telegram_ingress`
+- `CHECK agent_health_matrix`
+- `CHECK gsd_stage_guards`
+- `CHECK recovery_under_120s`
+
 ## Secret Hygiene
 
 - Keep `docker-templates/*.yml` public-safe.
