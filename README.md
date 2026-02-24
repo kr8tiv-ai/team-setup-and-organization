@@ -8,6 +8,7 @@ Operational infrastructure templates and runbooks for running KR8TIV AI agent st
 - Monitoring and tunnel runbooks
 - Docker Compose templates for agent stacks and Mission Control
 - Backup script for container data
+- Deterministic agent recovery orchestrator script
 - Task mode + arena + NotebookLM operating notes
 
 ## Repository layout
@@ -24,6 +25,7 @@ team-setup-and-organization/
   scripts/
     setup-infrastructure.sh
     backup-containers.sh
+    agent-recovery-orchestrator.sh
 ```
 
 ## Quick start
@@ -61,6 +63,7 @@ sudo bash scripts/backup-containers.sh
 ## Documentation index
 
 - Infrastructure: `docs/INFRASTRUCTURE.md`
+- Agent resilience: `docs/AGENT-RESILIENCE-RUNBOOK.md`
 - Cloudflare tunnel: `docs/CLOUDFLARE-TUNNEL.md`
 - Task modes + arena + NotebookLM: `docs/TASK-MODES-ARENA-NOTEBOOKLM.md`
 
