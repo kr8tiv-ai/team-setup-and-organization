@@ -38,6 +38,13 @@ Installed by `scripts/setup-infrastructure.sh`:
 - `/root/backup-containers.sh` (daily 2 AM)
 - `/root/agent-recovery-orchestrator.sh` (every 2 minutes)
 
+## Compose Policy Contracts
+
+- Every production service must set `restart: unless-stopped`.
+- Every production service must define a `healthcheck`.
+- Every service participating in runtime remediation must include `com.kr8tiv.watchdog: "enabled"`.
+- Agent templates should include `com.kr8tiv.recovery-window-seconds: "120"` to align with the watchdog SLO.
+
 ## Verification Commands
 
 ```bash
@@ -52,4 +59,3 @@ tail -n 100 /var/log/container-backup.log
 - Keep `docker-templates/*.yml` public-safe.
 - Use `*_FILE` env patterns and mounted secret files.
 - Do not commit `.env` values, key files, token files, or OAuth caches.
-

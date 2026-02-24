@@ -9,6 +9,9 @@ services:
     image: ghcr.io/hostinger/hvps-openclaw:latest
     container_name: openclaw-{AGENT_NAME} # Replace: friday, arsenal, edith, jocasta
     restart: unless-stopped
+    labels:
+      com.kr8tiv.watchdog: "enabled"
+      com.kr8tiv.recovery-window-seconds: "120"
 
     environment:
       # Agent identity

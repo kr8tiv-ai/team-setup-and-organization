@@ -9,6 +9,8 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    labels:
+      com.kr8tiv.watchdog: "enabled"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-mission_control}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -26,6 +28,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    labels:
+      com.kr8tiv.watchdog: "enabled"
     ports:
       - "${REDIS_PORT:-6380}:6379"
     healthcheck:
@@ -39,6 +43,9 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     restart: unless-stopped
+    labels:
+      com.kr8tiv.watchdog: "enabled"
+      com.kr8tiv.role: "mission-control-backend"
     env_file:
       - ./backend/.env.example
     environment:
@@ -74,6 +81,9 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8100}
         NEXT_PUBLIC_AUTH_MODE: ${AUTH_MODE}
     restart: unless-stopped
+    labels:
+      com.kr8tiv.watchdog: "enabled"
+      com.kr8tiv.role: "mission-control-frontend"
     env_file:
       - path: ./frontend/.env
         required: false
@@ -97,6 +107,9 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     restart: unless-stopped
+    labels:
+      com.kr8tiv.watchdog: "enabled"
+      com.kr8tiv.role: "mission-control-worker"
     command: ["rq", "worker", "-u", "redis://redis:6379/0"]
     env_file:
       - ./backend/.env.example
