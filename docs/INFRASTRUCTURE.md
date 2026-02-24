@@ -12,6 +12,7 @@ Our infrastructure is designed for autonomous AI agent teams:
 - **Orchestration Layer**: Mission Control (FastAPI + PostgreSQL + Redis)
 - **Monitoring Layer**: Uptime Kuma + Dozzle
 - **Backup Layer**: Automated daily backups with 7-day retention
+- **Recovery Layer**: Deterministic single-owner restart orchestration
 
 ---
 
@@ -158,6 +159,22 @@ docker exec -i openclaw-mission-control-db-1 \
 
 ---
 
+### 6. Deterministic Recovery Orchestrator
+
+**What it does:** Detects down or unhealthy agents and performs one-owner recovery attempts with cooldown and logging.
+
+**Configuration:** See `scripts/agent-recovery-orchestrator.sh`
+
+**Schedule:** Every 2 minutes via cron
+
+**Logs:** `/var/log/agent-recovery.log`
+
+**Recovery order:** FRIDAY -> ARSENAL -> JOCASTA -> EDITH
+
+**Why it matters:** Prevents recovery collisions and guarantees consistent restore behavior.
+
+---
+
 ## Network Security
 
 ### Current Setup (Good)
@@ -257,6 +274,8 @@ swapon --show
 
 1. Copy agent template: `cp docker-templates/agent-template.yml docker/openclaw-newagent/docker-compose.yml`
 2. Customize environment variables
+   - Use `*_FILE` runtime secret injection variables.
+   - Do not place literal keys or tokens in compose files.
 3. Deploy: `cd docker/openclaw-newagent && docker compose up -d`
 4. Add monitor in Uptime Kuma
 5. Update backup script with new agent name
