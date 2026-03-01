@@ -11,10 +11,10 @@ This runbook defines persistence and deterministic recovery for FRIDAY, ARSENAL,
 
 ## Runtime Model Policy
 
-- FRIDAY: `openai-codex/gpt-5.3-codex` (CLI path)
-- ARSENAL: `openai-codex/gpt-5.3-codex` (CLI path)
-- JOCASTA: `nvidia/moonshotai/kimi-k2.5` (NVIDIA API path)
-- EDITH: `google-gemini-cli/gemini-3.1-pro` (CLI path)
+- FRIDAY: `anthropic/claude-opus-4-6` (API path)
+- ARSENAL: `anthropic/claude-opus-4-6` (API path)
+- JOCASTA: `anthropic/claude-opus-4-6` (API path)
+- EDITH: `anthropic/claude-opus-4-6` (API path)
 
 Do not let agents self-edit model routes at runtime.
 
