@@ -12,6 +12,7 @@ LOCK_FILE="/var/run/kr8tiv-recovery.lock"
 STATE_DIR="/var/run/kr8tiv-recovery"
 LOG_FILE="/var/log/agent-recovery.log"
 COOLDOWN_SECONDS="${RECOVERY_COOLDOWN_SECONDS:-300}"
+BOOTSTRAP_SCRIPT="${BOOTSTRAP_SCRIPT:-/root/bootstrap-openclaw-cli-auth.sh}"
 
 mkdir -p "$STATE_DIR"
 
@@ -165,6 +166,9 @@ mark_recovery_attempt "$down_agent"
 
 if docker restart "$down_container" >/dev/null; then
   sleep 10
+  if [ -x "$BOOTSTRAP_SCRIPT" ]; then
+    "$BOOTSTRAP_SCRIPT" >> /var/log/agent-recovery.log 2>&1 || true
+  fi
   post_state=$(container_health_state "$down_container")
   post_status="${post_state%%|*}"
   post_health="${post_state##*|}"

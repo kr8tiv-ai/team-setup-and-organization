@@ -1,0 +1,15 @@
+[Unit]
+Description=KR8TIV Mission Control agent auth reconcile
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root
+ExecStart=/bin/bash /root/reconcile-agent-auth.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

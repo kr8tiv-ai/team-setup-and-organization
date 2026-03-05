@@ -1,0 +1,15 @@
+[Unit]
+Description=KR8TIV OpenClaw CLI/auth bootstrap
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root
+ExecStart=/bin/bash /root/bootstrap-openclaw-cli-auth.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

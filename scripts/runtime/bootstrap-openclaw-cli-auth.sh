@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Ensure CLI model backends (claude/codex/gemini) and auth profiles stay boot-safe.
+# Run from host via systemd timer; script is idempotent.
+
+LOG_PREFIX="[kr8tiv-cli-bootstrap]"
+TARGET_REGEX="${TARGET_REGEX:-openclaw-(friday|arsenal|jocasta|edith)|openclaw-ydy8-openclaw-1}"
+
+log() {
+  printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LOG_PREFIX" "$*"
+}
+
+if ! command -v docker >/dev/null 2>&1; then
+  log "error=docker_not_found"
+  exit 2
+fi
+
+mapfile -t TARGET_CONTAINERS < <(
+  docker ps --format '{{.Names}}' | grep -E "${TARGET_REGEX}" || true
+)
+
+if [ "${#TARGET_CONTAINERS[@]}" -eq 0 ]; then
+  log "status=no_target_containers"
+  exit 0
+fi
+
+bootstrap_container() {
+  local container="$1"
+  log "container=${container} phase=start"
+
+  docker exec -i "${container}" sh <<'EOS'
+set -eu
+
+if command -v npm >/dev/null 2>&1; then
+  command -v claude >/dev/null 2>&1 || npm -g install @anthropic-ai/claude-code >/dev/null 2>&1 || true
+  command -v codex >/dev/null 2>&1 || npm -g install @openai/codex >/dev/null 2>&1 || true
+  command -v gemini >/dev/null 2>&1 || npm -g install @google/gemini-cli >/dev/null 2>&1 || true
+fi
+
+for bin in claude codex gemini; do
+  p="$(command -v "$bin" 2>/dev/null || true)"
+  if [ -n "$p" ]; then
+    chmod 755 "$p" 2>/dev/null || true
+  fi
+done
+
+python3 - <<'PY'
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+
+TARGETS = [
+    Path("/data/.openclaw/agents/main/agent/auth-profiles.json"),
+    Path("/data/.openclaw/agents/default/agent/auth-profiles.json"),
+    Path("/data/.openclaw/auth-profiles.json"),
+]
+
+
+def read_secret(name: str) -> str:
+    direct = str(os.getenv(name, "")).strip()
+    if direct:
+        return direct
+    from_file = str(os.getenv(f"{name}_FILE", "")).strip()
+    if from_file:
+        try:
+            return Path(from_file).read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+    return ""
+
+
+def load_existing() -> dict[str, dict[str, str]]:
+    merged: dict[str, dict[str, str]] = {}
+    for path in TARGETS:
+        if not path.exists():
+            continue
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(raw, dict):
+            continue
+        for provider, payload in raw.items():
+            if not isinstance(payload, dict):
+                continue
+            key = str(payload.get("apiKey") or "").strip()
+            if key:
+                merged[str(provider)] = {"apiKey": key}
+    return merged
+
+
+profiles = load_existing()
+provider_env = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "google": "GOOGLE_API_KEY",
+    "nvidia": "NVIDIA_API_KEY",
+}
+
+for provider, env_name in provider_env.items():
+    secret = read_secret(env_name)
+    if secret:
+        profiles[provider] = {"apiKey": secret}
+
+if profiles:
+    payload = json.dumps(profiles, indent=2, sort_keys=True)
+    for path in TARGETS:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(payload, encoding="utf-8")
+PY
+
+chmod 600 /data/.openclaw/agents/main/agent/auth-profiles.json 2>/dev/null || true
+chmod 600 /data/.openclaw/agents/default/agent/auth-profiles.json 2>/dev/null || true
+chmod 600 /data/.openclaw/auth-profiles.json 2>/dev/null || true
+EOS
+
+  log "container=${container} phase=done"
+}
+
+preflight_container() {
+  local container="$1"
+  local required_cli="$2"
+  local api_env="$3"
+  local require_cli="${4:-false}"
+  local mode="${5:-cli_or_api}"
+
+  local output
+  output="$(
+    docker exec -i "${container}" sh -lc "
+set -eu
+cli_ok=0
+if [ -n '${required_cli}' ] && command -v '${required_cli}' >/dev/null 2>&1; then
+  cli_ok=1
+fi
+api_ok=0
+api_val=\$(printenv '${api_env}' || true)
+if [ -n \"\${api_val}\" ]; then
+  api_ok=1
+fi
+api_file=\$(printenv '${api_env}_FILE' || true)
+if [ -n \"\${api_file}\" ] && [ -r \"\${api_file}\" ] && [ -s \"\${api_file}\" ]; then
+  api_ok=1
+fi
+if [ '${mode}' = 'api_only' ]; then
+  [ \${api_ok} -eq 1 ] && echo ok || echo fail
+else
+  if [ '${require_cli}' = 'true' ]; then
+    [ \${cli_ok} -eq 1 ] && echo ok || echo fail
+  else
+    [ \${cli_ok} -eq 1 ] || [ \${api_ok} -eq 1 ] && echo ok || echo fail
+  fi
+fi
+" 2>/dev/null || echo "fail"
+  )"
+
+  if [ "${output}" = "ok" ]; then
+    log "container=${container} preflight=ok cli=${required_cli:-none} api_env=${api_env} mode=${mode}"
+    return 0
+  fi
+
+  log "container=${container} preflight=failed cli=${required_cli:-none} api_env=${api_env} mode=${mode}"
+  return 1
+}
+
+for container in "${TARGET_CONTAINERS[@]}"; do
+  if ! bootstrap_container "${container}"; then
+    log "container=${container} phase=failed"
+  fi
+
+  case "${container}" in
+    *friday* )
+      preflight_container "${container}" "claude" "ANTHROPIC_API_KEY" "false" "cli_or_api" || true
+      ;;
+    *arsenal* )
+      preflight_container "${container}" "codex" "OPENAI_API_KEY" "false" "cli_or_api" || true
+      ;;
+    *edith* )
+      preflight_container "${container}" "gemini" "GOOGLE_API_KEY" "false" "cli_or_api" || true
+      ;;
+    *jocasta* )
+      preflight_container "${container}" "" "NVIDIA_API_KEY" "false" "api_only" || true
+      ;;
+  esac
+done
+
+log "status=complete containers=${#TARGET_CONTAINERS[@]}"

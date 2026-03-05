@@ -57,7 +57,29 @@ chmod +x /root/agent-recovery-orchestrator.sh
 echo "Recovery orchestrator configured (every 2 minutes)"
 echo ""
 
-echo "=== Step 5: Enabling auto-restart on all containers ==="
+echo "=== Step 5: Installing agent auth reconcile timer ==="
+cp scripts/runtime/reconcile-agent-auth.sh /root/reconcile-agent-auth.sh
+chmod +x /root/reconcile-agent-auth.sh
+cp deploy/systemd/kr8tiv-agent-reconcile.service /etc/systemd/system/kr8tiv-agent-reconcile.service
+cp deploy/systemd/kr8tiv-agent-reconcile.timer /etc/systemd/system/kr8tiv-agent-reconcile.timer
+systemctl daemon-reload
+systemctl enable --now kr8tiv-agent-reconcile.timer
+
+echo "Agent auth reconcile timer configured (every 10 minutes)"
+echo ""
+
+echo "=== Step 6: Installing CLI/auth bootstrap timer ==="
+cp scripts/runtime/bootstrap-openclaw-cli-auth.sh /root/bootstrap-openclaw-cli-auth.sh
+chmod +x /root/bootstrap-openclaw-cli-auth.sh
+cp deploy/systemd/kr8tiv-cli-bootstrap.service /etc/systemd/system/kr8tiv-cli-bootstrap.service
+cp deploy/systemd/kr8tiv-cli-bootstrap.timer /etc/systemd/system/kr8tiv-cli-bootstrap.timer
+systemctl daemon-reload
+systemctl enable --now kr8tiv-cli-bootstrap.timer
+
+echo "CLI/auth bootstrap timer configured (every 15 minutes)"
+echo ""
+
+echo "=== Step 7: Enabling auto-restart on all containers ==="
 containers=$(docker ps --format '{{.Names}}' | grep -v -E '(uptime-kuma|dozzle)' || true)
 
 for container in $containers; do
@@ -81,3 +103,5 @@ echo ""
 echo "Backup location: /backups"
 echo "Backup schedule: Daily at 2 AM"
 echo "Recovery check schedule: Every 2 minutes"
+echo "Agent auth reconcile schedule: Every 10 minutes"
+echo "CLI/auth bootstrap schedule: Every 15 minutes"

@@ -11,10 +11,10 @@ This runbook defines persistence and deterministic recovery for FRIDAY, ARSENAL,
 
 ## Runtime Model Policy
 
-- FRIDAY: `anthropic/claude-opus-4-6` (API path)
-- ARSENAL: `anthropic/claude-opus-4-6` (API path)
-- JOCASTA: `anthropic/claude-opus-4-6` (API path)
-- EDITH: `anthropic/claude-opus-4-6` (API path)
+- FRIDAY: `anthropic/claude-opus-4-6` (CLI primary, API fallback)
+- ARSENAL: `openai-codex/gpt-5.3-codex` (CLI primary, API fallback)
+- JOCASTA: `nvidia/moonshotai/kimi-k2.5` (API)
+- EDITH: `google/gemini-3-pro-preview` (runtime-safe Gemini 3.1 lane)
 
 Do not let agents self-edit model routes at runtime.
 
@@ -37,6 +37,8 @@ Installed by `scripts/setup-infrastructure.sh`:
 
 - `/root/backup-containers.sh` (daily 2 AM)
 - `/root/agent-recovery-orchestrator.sh` (every 2 minutes)
+- `kr8tiv-agent-reconcile.service` + `kr8tiv-agent-reconcile.timer` (every 10 minutes)
+- `/root/bootstrap-openclaw-cli-auth.sh` + `kr8tiv-cli-bootstrap.timer` (every 15 minutes)
 
 ## Compose Policy Contracts
 
@@ -44,12 +46,14 @@ Installed by `scripts/setup-infrastructure.sh`:
 - Every production service must define a `healthcheck`.
 - Every service participating in runtime remediation must include `com.kr8tiv.watchdog: "enabled"`.
 - Agent templates should include `com.kr8tiv.recovery-window-seconds: "120"` to align with the watchdog SLO.
+- Agent runtime image should be pinned to `ghcr.io/openclaw/openclaw:2026.3.2` (avoid `latest` drift).
 
 ## Verification Commands
 
 ```bash
 docker ps --format '{{.Names}}|{{.Status}}'
 crontab -l | grep -E 'backup-containers|agent-recovery-orchestrator'
+systemctl list-timers --all | grep -E 'kr8tiv-agent-reconcile|kr8tiv-cli-bootstrap'
 tail -n 100 /var/log/agent-recovery.log
 tail -n 100 /var/log/container-backup.log
 ```
