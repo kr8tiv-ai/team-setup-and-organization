@@ -21,6 +21,7 @@ services:
         from __future__ import annotations
 
         import base64
+        import json
         import os
         from pathlib import Path
 
@@ -68,39 +69,141 @@ services:
                 str(runtime_home / ".codex" / "auth.json"),
             ],
         )
+        auth_targets = [
+            Path("/data/.openclaw/agents/main/agent/auth-profiles.json"),
+            Path("/data/.openclaw/agents/default/agent/auth-profiles.json"),
+            Path("/data/.openclaw/auth-profiles.json"),
+        ]
+
+        profiles: dict[str, dict[str, str]] = {}
+        for provider, env_name in {
+            "anthropic": "ANTHROPIC_API_KEY",
+            "openai": "OPENAI_API_KEY",
+            "google": "GOOGLE_API_KEY",
+            "nvidia": "NVIDIA_API_KEY",
+        }.items():
+            secret = read_secret(env_name)
+            if secret:
+                profiles[provider] = {"apiKey": secret}
+
+        if profiles:
+            payload = json.dumps(profiles, indent=2, sort_keys=True)
+            for target in auth_targets:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(payload, encoding="utf-8")
+                os.chmod(target, 0o600)
+
+        model_id = str(os.getenv("MODEL") or os.getenv("MODEL_PRIMARY") or "").strip()
+        fallbacks_value = str(os.getenv("MODEL_FALLBACKS") or "").strip()
+        fallback_models = [part.strip() for part in fallbacks_value.split(",") if part.strip()]
+        container_tag = str(os.getenv("SUPERMEMORY_CONTAINER") or "").strip()
+        config_path = Path("/data/.openclaw/openclaw.json")
+        if config_path.exists() and (model_id or fallback_models or container_tag):
+            try:
+                data = json.loads(config_path.read_text(encoding="utf-8"))
+            except Exception:
+                data = None
+            if isinstance(data, dict):
+                changed = False
+                for key in ("model", "defaultModel", "primaryModel"):
+                    if data.pop(key, None) is not None:
+                        changed = True
+
+                agents = data.get("agents")
+                if not isinstance(agents, dict):
+                    agents = {}
+                    data["agents"] = agents
+                    changed = True
+                defaults = agents.get("defaults")
+                if not isinstance(defaults, dict):
+                    defaults = {}
+                    agents["defaults"] = defaults
+                    changed = True
+                model_obj = defaults.get("model")
+                if not isinstance(model_obj, dict):
+                    model_obj = {}
+                    defaults["model"] = model_obj
+                    changed = True
+                if model_obj.get("primary") != model_id:
+                    model_obj["primary"] = model_id
+                    changed = True
+                if model_obj.get("fallbacks") != fallback_models:
+                    model_obj["fallbacks"] = fallback_models
+                    changed = True
+
+                tools = data.get("tools")
+                if not isinstance(tools, dict):
+                    tools = {}
+                    data["tools"] = tools
+                    changed = True
+                if tools.get("profile") != "coding":
+                    tools["profile"] = "coding"
+                    changed = True
+
+                if container_tag:
+                    memory = data.get("memory")
+                    if not isinstance(memory, dict):
+                        memory = {}
+                        data["memory"] = memory
+                        changed = True
+                    if memory.get("backend") != "supermemory":
+                        memory["backend"] = "supermemory"
+                        changed = True
+                    if memory.get("citations") != "auto":
+                        memory["citations"] = "auto"
+                        changed = True
+                    supermemory = memory.get("supermemory")
+                    if not isinstance(supermemory, dict):
+                        supermemory = {}
+                        memory["supermemory"] = supermemory
+                        changed = True
+                    if supermemory.get("containerTag") != container_tag:
+                        supermemory["containerTag"] = container_tag
+                        changed = True
+
+                if changed:
+                    config_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
         PY
         if command -v npm >/dev/null 2>&1; then
           command -v claude >/dev/null 2>&1 || npm -g install @anthropic-ai/claude-code >>/data/.tooling/cli-bootstrap.log 2>&1
           command -v codex >/dev/null 2>&1 || npm -g install @openai/codex >>/data/.tooling/cli-bootstrap.log 2>&1
           command -v gemini >/dev/null 2>&1 || npm -g install @google/gemini-cli >>/data/.tooling/cli-bootstrap.log 2>&1
-          command -v claude >/dev/null 2>&1 && chmod 755 "$(command -v claude)" || true
-          command -v codex >/dev/null 2>&1 && chmod 755 "$(command -v codex)" || true
-          command -v gemini >/dev/null 2>&1 && chmod 755 "$(command -v gemini)" || true
+          command -v claude >/dev/null 2>&1 && chmod 755 "$$(command -v claude)" || true
+          command -v codex >/dev/null 2>&1 && chmod 755 "$$(command -v codex)" || true
+          command -v gemini >/dev/null 2>&1 && chmod 755 "$$(command -v gemini)" || true
         fi
-        codex_bin="$(command -v codex 2>/dev/null || true)"
-        if [ -n "${codex_bin}" ]; then
-          codex_real="$(dirname "${codex_bin}")/codex-real"
-          if [ ! -x "${codex_real}" ]; then
-            mv "${codex_bin}" "${codex_real}"
-            cat >"${codex_bin}" <<'SH'
-        #!/usr/bin/env bash
+        python3 - <<'PY'
+        from __future__ import annotations
+
+        import os
+        import shutil
+        from pathlib import Path
+
+        codex_bin = shutil.which("codex")
+        if codex_bin:
+            wrapper_path = Path(codex_bin)
+            real_path = wrapper_path.with_name("codex-real")
+            if not real_path.exists():
+                wrapper_path.rename(real_path)
+                wrapper_script = """#!/usr/bin/env bash
         set -eu
-        real_bin="$(dirname "$0")/codex-real"
+        real_bin="$$(dirname "$$0")/codex-real"
         args=()
-        for arg in "$@"; do
-          case "$arg" in
+        for arg in "$$@"; do
+          case "$$arg" in
             --color|--color=*)
               continue
               ;;
           esac
-          args+=("$arg")
+          args+=("$$arg")
         done
-        exec "${real_bin}" "${args[@]}"
-        SH
-            chmod 755 "${codex_bin}"
-          fi
-        fi
-        exec node dist/index.js gateway --bind "${OPENCLAW_GATEWAY_BIND:-lan}" --port "${PORT:-18789}"
+        exec "$${real_bin}" "$${args[@]}"
+        """
+                wrapper_path.write_text(wrapper_script, encoding="utf-8")
+                os.chmod(wrapper_path, 0o755)
+                os.chmod(real_path, 0o755)
+        PY
+        exec node dist/index.js gateway --bind "$${OPENCLAW_GATEWAY_BIND:-lan}" --port "$${PORT:-18789}"
     labels:
       com.kr8tiv.watchdog: "enabled"
       com.kr8tiv.recovery-window-seconds: "120"

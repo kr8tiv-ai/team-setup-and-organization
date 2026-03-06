@@ -29,7 +29,38 @@ def test_agent_template_wraps_codex_cli_for_flag_compatibility() -> None:
     content = Path("docker-templates/agent-template.yml").read_text(encoding="utf-8")
     assert "codex-real" in content
     assert "--color" in content
-    assert 'args+=("$arg")' in content
+    assert 'args+=("$$arg")' in content
+    assert "wrapper_path.write_text(wrapper_script, encoding=\"utf-8\")" in content
+    assert "<<'SH'" not in content
+
+
+def test_agent_template_escapes_runtime_shell_variables_for_compose() -> None:
+    content = Path("docker-templates/agent-template.yml").read_text(encoding="utf-8")
+    assert 'wrapper_script = """#!/usr/bin/env bash' in content
+    assert 'real_bin="$$(dirname "$$0")/codex-real"' in content
+    assert 'for arg in "$$@"; do' in content
+    assert 'exec "$${real_bin}" "$${args[@]}"' in content
+    assert 'exec node dist/index.js gateway --bind "$${OPENCLAW_GATEWAY_BIND:-lan}" --port "$${PORT:-18789}"' in content
+
+
+def test_agent_template_repairs_persisted_model_and_tools_profile() -> None:
+    content = Path("docker-templates/agent-template.yml").read_text(encoding="utf-8")
+    assert 'config_path = Path("/data/.openclaw/openclaw.json")' in content
+    assert 'defaults = agents.get("defaults")' in content
+    assert 'model_obj["primary"] = model_id' in content
+    assert 'fallbacks_value = str(os.getenv("MODEL_FALLBACKS") or "").strip()' in content
+    assert 'model_obj["fallbacks"] = fallback_models' in content
+    assert 'tools["profile"] = "coding"' in content
+    assert 'if data.pop(key, None) is not None:' in content
+
+
+def test_agent_template_repairs_auth_profiles_and_supermemory_memory_config() -> None:
+    content = Path("docker-templates/agent-template.yml").read_text(encoding="utf-8")
+    assert 'Path("/data/.openclaw/agents/main/agent/auth-profiles.json")' in content
+    assert '"openai": "OPENAI_API_KEY"' in content
+    assert 'memory = data.get("memory")' in content
+    assert 'memory["backend"] = "supermemory"' in content
+    assert 'supermemory["containerTag"] = container_tag' in content
 
 
 def test_agent_template_uses_secret_files_for_all_supported_llm_runtimes() -> None:
@@ -93,6 +124,29 @@ def test_cli_bootstrap_script_wraps_codex_cli_for_flag_compatibility() -> None:
     assert "codex-real" in content
     assert "--color" in content
     assert 'args+=("$arg")' in content
+
+
+def test_cli_bootstrap_script_repairs_persisted_model_and_tools_profile() -> None:
+    content = Path("scripts/runtime/bootstrap-openclaw-cli-auth.sh").read_text(
+        encoding="utf-8"
+    )
+    assert 'config_path = Path("/data/.openclaw/openclaw.json")' in content
+    assert 'model_id = str(os.getenv("MODEL") or os.getenv("MODEL_PRIMARY") or "").strip()' in content
+    assert 'model_obj["primary"] = model_id' in content
+    assert 'fallbacks_value = str(os.getenv("MODEL_FALLBACKS") or "").strip()' in content
+    assert 'model_obj["fallbacks"] = fallback_models' in content
+    assert 'tools["profile"] = "coding"' in content
+    assert 'if data.pop(key, None) is not None:' in content
+
+
+def test_cli_bootstrap_script_repairs_supermemory_memory_config() -> None:
+    content = Path("scripts/runtime/bootstrap-openclaw-cli-auth.sh").read_text(
+        encoding="utf-8"
+    )
+    assert 'container_tag = str(os.getenv("SUPERMEMORY_CONTAINER") or "").strip()' in content
+    assert 'memory = data.get("memory")' in content
+    assert 'memory["backend"] = "supermemory"' in content
+    assert 'supermemory["containerTag"] = container_tag' in content
 
 
 def test_setup_script_installs_cli_bootstrap_timer() -> None:

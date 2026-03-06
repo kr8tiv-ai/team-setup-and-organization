@@ -190,6 +190,77 @@ if profiles:
     for path in TARGETS:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(payload, encoding="utf-8")
+
+model_id = str(os.getenv("MODEL") or os.getenv("MODEL_PRIMARY") or "").strip()
+fallbacks_value = str(os.getenv("MODEL_FALLBACKS") or "").strip()
+fallback_models = [part.strip() for part in fallbacks_value.split(",") if part.strip()]
+container_tag = str(os.getenv("SUPERMEMORY_CONTAINER") or "").strip()
+config_path = Path("/data/.openclaw/openclaw.json")
+if config_path.exists() and (model_id or fallback_models or container_tag):
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+    except Exception:
+        data = None
+    if isinstance(data, dict):
+        changed = False
+        for key in ("model", "defaultModel", "primaryModel"):
+            if data.pop(key, None) is not None:
+                changed = True
+
+        agents = data.get("agents")
+        if not isinstance(agents, dict):
+            agents = {}
+            data["agents"] = agents
+            changed = True
+        defaults = agents.get("defaults")
+        if not isinstance(defaults, dict):
+            defaults = {}
+            agents["defaults"] = defaults
+            changed = True
+        model_obj = defaults.get("model")
+        if not isinstance(model_obj, dict):
+            model_obj = {}
+            defaults["model"] = model_obj
+            changed = True
+        if model_obj.get("primary") != model_id:
+            model_obj["primary"] = model_id
+            changed = True
+        if model_obj.get("fallbacks") != fallback_models:
+            model_obj["fallbacks"] = fallback_models
+            changed = True
+
+        tools = data.get("tools")
+        if not isinstance(tools, dict):
+            tools = {}
+            data["tools"] = tools
+            changed = True
+        if tools.get("profile") != "coding":
+            tools["profile"] = "coding"
+            changed = True
+
+        if container_tag:
+            memory = data.get("memory")
+            if not isinstance(memory, dict):
+                memory = {}
+                data["memory"] = memory
+                changed = True
+            if memory.get("backend") != "supermemory":
+                memory["backend"] = "supermemory"
+                changed = True
+            if memory.get("citations") != "auto":
+                memory["citations"] = "auto"
+                changed = True
+            supermemory = memory.get("supermemory")
+            if not isinstance(supermemory, dict):
+                supermemory = {}
+                memory["supermemory"] = supermemory
+                changed = True
+            if supermemory.get("containerTag") != container_tag:
+                supermemory["containerTag"] = container_tag
+                changed = True
+
+        if changed:
+            config_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 PY
 
 chmod 600 /data/.openclaw/agents/main/agent/auth-profiles.json 2>/dev/null || true
