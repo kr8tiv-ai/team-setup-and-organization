@@ -101,6 +101,30 @@ for bin in claude codex gemini; do
   fi
 done
 
+codex_bin="$(command -v codex 2>/dev/null || true)"
+if [ -n "${codex_bin}" ]; then
+  codex_real="$(dirname "${codex_bin}")/codex-real"
+  if [ ! -x "${codex_real}" ]; then
+    mv "${codex_bin}" "${codex_real}"
+    cat >"${codex_bin}" <<'SH'
+#!/usr/bin/env bash
+set -eu
+real_bin="$(dirname "$0")/codex-real"
+args=()
+for arg in "$@"; do
+  case "$arg" in
+    --color|--color=*)
+      continue
+      ;;
+  esac
+  args+=("$arg")
+done
+exec "${real_bin}" "${args[@]}"
+SH
+    chmod 755 "${codex_bin}" 2>/dev/null || true
+  fi
+fi
+
 python3 - <<'PY'
 from __future__ import annotations
 

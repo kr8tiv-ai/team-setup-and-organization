@@ -25,6 +25,13 @@ def test_agent_template_accepts_cli_auth_seed_env() -> None:
     assert "CODEX_AUTH_JSON_B64" in content
 
 
+def test_agent_template_wraps_codex_cli_for_flag_compatibility() -> None:
+    content = Path("docker-templates/agent-template.yml").read_text(encoding="utf-8")
+    assert "codex-real" in content
+    assert "--color" in content
+    assert 'args+=("$arg")' in content
+
+
 def test_agent_template_uses_secret_files_for_all_supported_llm_runtimes() -> None:
     content = Path("docker-templates/agent-template.yml").read_text(encoding="utf-8")
     assert "ANTHROPIC_API_KEY_FILE: /run/secrets/anthropic_api_key" in content
@@ -77,6 +84,15 @@ def test_cli_bootstrap_script_writes_persistent_cli_auth_stores() -> None:
     assert 'str(runtime_home / ".claude" / ".credentials.json")' in content
     assert 'str(runtime_home / ".codex" / "auth.json")' in content
     assert "/data/.tooling/auth" in content
+
+
+def test_cli_bootstrap_script_wraps_codex_cli_for_flag_compatibility() -> None:
+    content = Path("scripts/runtime/bootstrap-openclaw-cli-auth.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "codex-real" in content
+    assert "--color" in content
+    assert 'args+=("$arg")' in content
 
 
 def test_setup_script_installs_cli_bootstrap_timer() -> None:
