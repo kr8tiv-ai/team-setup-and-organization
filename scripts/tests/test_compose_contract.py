@@ -9,6 +9,22 @@ def test_agent_template_has_restart_healthcheck_and_watchdog_label() -> None:
     assert "com.kr8tiv.watchdog" in content
 
 
+def test_agent_template_bootstraps_cli_tools_into_persistent_path() -> None:
+    content = Path("docker-templates/agent-template.yml").read_text(encoding="utf-8")
+    assert "entrypoint:" in content
+    assert "NPM_CONFIG_PREFIX=/data/.tooling/npm-global" in content
+    assert "/data/.tooling/npm-global/bin" in content
+    assert "npm -g install @anthropic-ai/claude-code" in content
+    assert "npm -g install @openai/codex" in content
+    assert "npm -g install @google/gemini-cli" in content
+
+
+def test_agent_template_accepts_cli_auth_seed_env() -> None:
+    content = Path("docker-templates/agent-template.yml").read_text(encoding="utf-8")
+    assert "CLAUDE_CREDENTIALS_JSON_B64" in content
+    assert "CODEX_AUTH_JSON_B64" in content
+
+
 def test_agent_template_uses_secret_files_for_all_supported_llm_runtimes() -> None:
     content = Path("docker-templates/agent-template.yml").read_text(encoding="utf-8")
     assert "ANTHROPIC_API_KEY_FILE: /run/secrets/anthropic_api_key" in content
@@ -41,6 +57,26 @@ def test_cli_bootstrap_script_and_units_exist() -> None:
     assert Path("scripts/runtime/bootstrap-openclaw-cli-auth.sh").exists()
     assert Path("deploy/systemd/kr8tiv-cli-bootstrap.service").exists()
     assert Path("deploy/systemd/kr8tiv-cli-bootstrap.timer").exists()
+
+
+def test_cli_bootstrap_script_uses_persistent_tooling_prefix() -> None:
+    content = Path("scripts/runtime/bootstrap-openclaw-cli-auth.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "NPM_CONFIG_PREFIX=/data/.tooling/npm-global" in content
+    assert "/data/.tooling/npm-global/bin" in content
+
+
+def test_cli_bootstrap_script_writes_persistent_cli_auth_stores() -> None:
+    content = Path("scripts/runtime/bootstrap-openclaw-cli-auth.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "CLAUDE_CREDENTIALS_JSON_B64" in content
+    assert "CODEX_AUTH_JSON_B64" in content
+    assert 'runtime_home = Path(os.getenv("HOME") or "/tmp")' in content
+    assert 'str(runtime_home / ".claude" / ".credentials.json")' in content
+    assert 'str(runtime_home / ".codex" / "auth.json")' in content
+    assert "/data/.tooling/auth" in content
 
 
 def test_setup_script_installs_cli_bootstrap_timer() -> None:

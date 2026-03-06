@@ -9,6 +9,75 @@ services:
     image: ghcr.io/openclaw/openclaw:2026.3.2
     container_name: openclaw-{AGENT_NAME} # Replace: friday, arsenal, edith, jocasta
     restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - |
+        set -eu
+        export NPM_CONFIG_PREFIX=/data/.tooling/npm-global
+        export PATH="/data/.tooling/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        mkdir -p /data/.tooling/npm-global /data/.tooling
+        python3 - <<'PY'
+        from __future__ import annotations
+
+        import base64
+        import os
+        from pathlib import Path
+
+
+        def read_secret(name: str) -> str:
+            direct = str(os.getenv(name, "")).strip()
+            if direct:
+                return direct
+            from_file = str(os.getenv(f"{name}_FILE", "")).strip()
+            if from_file:
+                try:
+                    return Path(from_file).read_text(encoding="utf-8").strip()
+                except OSError:
+                    return ""
+            return ""
+
+
+        def write_json_seed(name: str, targets: list[str]) -> None:
+            encoded = read_secret(name)
+            if not encoded:
+                return
+            try:
+                payload = base64.b64decode(encoded).decode("utf-8")
+            except Exception:
+                return
+            for target in targets:
+                path = Path(target)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(payload, encoding="utf-8")
+                os.chmod(path, 0o600)
+
+
+        runtime_home = Path(os.getenv("HOME") or "/tmp")
+        write_json_seed(
+            "CLAUDE_CREDENTIALS_JSON_B64",
+            [
+                "/data/.tooling/auth/claude.credentials.json",
+                str(runtime_home / ".claude" / ".credentials.json"),
+            ],
+        )
+        write_json_seed(
+            "CODEX_AUTH_JSON_B64",
+            [
+                "/data/.tooling/auth/codex-auth.json",
+                str(runtime_home / ".codex" / "auth.json"),
+            ],
+        )
+        PY
+        if command -v npm >/dev/null 2>&1; then
+          command -v claude >/dev/null 2>&1 || npm -g install @anthropic-ai/claude-code >>/data/.tooling/cli-bootstrap.log 2>&1
+          command -v codex >/dev/null 2>&1 || npm -g install @openai/codex >>/data/.tooling/cli-bootstrap.log 2>&1
+          command -v gemini >/dev/null 2>&1 || npm -g install @google/gemini-cli >>/data/.tooling/cli-bootstrap.log 2>&1
+          command -v claude >/dev/null 2>&1 && chmod 755 "$(command -v claude)" || true
+          command -v codex >/dev/null 2>&1 && chmod 755 "$(command -v codex)" || true
+          command -v gemini >/dev/null 2>&1 && chmod 755 "$(command -v gemini)" || true
+        fi
+        exec node dist/index.js gateway --bind "${OPENCLAW_GATEWAY_BIND:-lan}" --port "${PORT:-18789}"
     labels:
       com.kr8tiv.watchdog: "enabled"
       com.kr8tiv.recovery-window-seconds: "120"
@@ -37,6 +106,12 @@ services:
       NVIDIA_API_KEY_FILE: /run/secrets/nvidia_api_key
       SUPERMEMORY_API_KEY_FILE: /run/secrets/supermemory_api_key
       SUPERMEMORY_CONTAINER: ${SUPERMEMORY_CONTAINER}
+      CLAUDE_CREDENTIALS_JSON_B64: ${CLAUDE_CREDENTIALS_JSON_B64:-}
+      CLAUDE_CREDENTIALS_JSON_B64_FILE: ${CLAUDE_CREDENTIALS_JSON_B64_FILE:-}
+      CODEX_AUTH_JSON_B64: ${CODEX_AUTH_JSON_B64:-}
+      CODEX_AUTH_JSON_B64_FILE: ${CODEX_AUTH_JSON_B64_FILE:-}
+      NPM_CONFIG_PREFIX: /data/.tooling/npm-global
+      PATH: /data/.tooling/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
     secrets:
       - openclaw_gateway_token

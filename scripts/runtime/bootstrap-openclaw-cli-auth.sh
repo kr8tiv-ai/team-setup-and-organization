@@ -29,13 +29,69 @@ bootstrap_container() {
   local container="$1"
   log "container=${container} phase=start"
 
-  docker exec -i "${container}" sh <<'EOS'
+docker exec -i "${container}" sh <<'EOS'
 set -eu
+export NPM_CONFIG_PREFIX=/data/.tooling/npm-global
+export PATH="/data/.tooling/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+mkdir -p /data/.tooling/npm-global /data/.tooling
+
+python3 - <<'PY'
+from __future__ import annotations
+
+import base64
+import os
+from pathlib import Path
+
+
+def read_secret(name: str) -> str:
+    direct = str(os.getenv(name, "")).strip()
+    if direct:
+        return direct
+    from_file = str(os.getenv(f"{name}_FILE", "")).strip()
+    if from_file:
+        try:
+            return Path(from_file).read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+    return ""
+
+
+def write_json_seed(name: str, targets: list[str]) -> None:
+    encoded = read_secret(name)
+    if not encoded:
+        return
+    try:
+        payload = base64.b64decode(encoded).decode("utf-8")
+    except Exception:
+        return
+    for target in targets:
+        path = Path(target)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(payload, encoding="utf-8")
+        os.chmod(path, 0o600)
+
+
+runtime_home = Path(os.getenv("HOME") or "/tmp")
+write_json_seed(
+    "CLAUDE_CREDENTIALS_JSON_B64",
+    [
+        "/data/.tooling/auth/claude.credentials.json",
+        str(runtime_home / ".claude" / ".credentials.json"),
+    ],
+)
+write_json_seed(
+    "CODEX_AUTH_JSON_B64",
+    [
+        "/data/.tooling/auth/codex-auth.json",
+        str(runtime_home / ".codex" / "auth.json"),
+    ],
+)
+PY
 
 if command -v npm >/dev/null 2>&1; then
-  command -v claude >/dev/null 2>&1 || npm -g install @anthropic-ai/claude-code >/dev/null 2>&1 || true
-  command -v codex >/dev/null 2>&1 || npm -g install @openai/codex >/dev/null 2>&1 || true
-  command -v gemini >/dev/null 2>&1 || npm -g install @google/gemini-cli >/dev/null 2>&1 || true
+  command -v claude >/dev/null 2>&1 || npm -g install @anthropic-ai/claude-code >>/data/.tooling/cli-bootstrap.log 2>&1 || true
+  command -v codex >/dev/null 2>&1 || npm -g install @openai/codex >>/data/.tooling/cli-bootstrap.log 2>&1 || true
+  command -v gemini >/dev/null 2>&1 || npm -g install @google/gemini-cli >>/data/.tooling/cli-bootstrap.log 2>&1 || true
 fi
 
 for bin in claude codex gemini; do
