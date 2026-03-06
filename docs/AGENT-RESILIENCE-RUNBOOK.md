@@ -12,7 +12,7 @@ This runbook defines persistence and deterministic recovery for FRIDAY, ARSENAL,
 ## Runtime Model Policy
 
 - FRIDAY: `anthropic/claude-opus-4-6` (CLI primary, API fallback)
-- ARSENAL: `openai-codex/gpt-5.3-codex` (CLI primary, API fallback)
+- ARSENAL: `openai-codex/gpt-5.4` (CLI primary, API fallback)
 - JOCASTA: `nvidia/moonshotai/kimi-k2.5` (API)
 - EDITH: `google/gemini-3-pro-preview` (runtime-safe Gemini 3.1 lane)
 
